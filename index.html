@@ -338,6 +338,7 @@ async function analyzeLabel(b64) {
   try {
     let result;
     if (cfg.aiProv === 'openai') result = await aiOpenAI(b64);
+    else if (cfg.aiProv === 'gemini') result = await aiGemini(b64);
     else result = await aiClaude(b64);
     S.analyzed = result;
   } catch(e) {
@@ -385,6 +386,24 @@ async function aiOpenAI(b64) {
   if (!res.ok) { const e=await res.json(); throw new Error(e.error?.message||'Erreur OpenAI'); }
   const d = await res.json();
   return JSON.parse(d.choices[0].message.content.match(/\{[\s\S]*\}/)?.[0]||'{}');
+}
+
+async function aiGemini(b64) {
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=' + encodeURIComponent(cfg.aiKey);
+  const res = await fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      contents:[{parts:[
+        {inline_data:{mime_type:'image/jpeg',data:b64.replace(/^data:image\/\w+;base64,/,'')}},
+        {text:AI_PROMPT}
+      ]}]
+    })
+  });
+  if (!res.ok) { const e=await res.json(); throw new Error(e.error?.message||'Erreur Gemini'); }
+  const d = await res.json();
+  const text = d.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+  return JSON.parse(text.match(/\{[\s\S]*\}/)?.[0]||'{}');
 }
 
 /* ═══════════════════════════════════════
@@ -745,8 +764,9 @@ function vSettings() {
       <div class="form-group">
         <label>Fournisseur</label>
         <select id="s-prov">
-          <option value="claude"${cfg.aiProv==='claude'?' selected':''}>Claude (Anthropic) — Recommandé</option>
+          <option value="claude"${cfg.aiProv==='claude'?' selected':''}>Claude (Anthropic)</option>
           <option value="openai"${cfg.aiProv==='openai'?' selected':''}>GPT-4o (OpenAI)</option>
+          <option value="gemini"${cfg.aiProv==='gemini'?' selected':''}>Gemini 2.5 Flash (Google) — Recommandé</option>
         </select>
       </div>
       <div class="form-group">
