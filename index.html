@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Ma Cave à Vin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+:root {
+  --wine:       #8B1A2E;
+  --wine-dark:  #5A0F1E;
+  --wine-light: #B03050;
+  --gold:       #C9A84C;
+  --gold-light: #E8C97A;
+  --bg:         #0C0508;
+  --surface:    #180C0E;
+  --surface2:   #251318;
+  --surface3:   #331B20;
+  --text:       #F0E6E8;
+  --text-muted: #9A8085;
+  --border:     #3A2025;
+  --success:    #4CAF82;
+  --error:      #F44356;
+  --radius:     14px;
+  --radius-sm:  8px;
+  --shadow:     0 8px 32px rgba(0,0,0,0.5);
+  --trans:      0.2s ease;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.5}
+
+/* ── APP SHELL ── */
+#app{height:100vh;overflow:hidden;position:relative}
+.page{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.page-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.page-scroll::-webkit-scrollbar{display:none}
+
+/* ── TOPBAR ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;position:sticky;top:0;z-index:10}
+.topbar h1{font-size:18px;font-weight:700;letter-spacing:-0.3px;flex:1;text-align:center}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.topbar-left h1{text-align:left;font-size:20px}
+.logo{font-size:26px;line-height:1}
+.subtitle{font-size:12px;color:var(--text-muted);display:block;margin-top:-2px}
+.back-btn{background:none;border:none;color:var(--gold);font-size:15px;cursor:pointer;padding:4px 0;font-weight:600;white-space:nowrap}
+.icon-btn{background:none;border:none;font-size:22px;cursor:pointer;padding:4px;border-radius:8px;transition:background var(--trans)}
+.icon-btn:active{background:var(--surface3)}
+.delete-btn{background:none;border:none;font-size:22px;cursor:pointer;padding:4px;opacity:0.7}
+
+/* ── COLLECTION ── */
+.search-bar{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.search-bar input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:15px;outline:none;transition:border-color var(--trans)}
+.search-bar input:focus{border-color:var(--wine-light)}
+.search-bar input::placeholder{color:var(--text-muted)}
+
+.filters-row{display:flex;gap:8px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0}
+.filters-row::-webkit-scrollbar{display:none}
+.filters-row select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;outline:none;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.filters-row select:focus{border-color:var(--wine-light)}
+
+.wine-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:12px 16px 100px}
+@media(min-width:480px){.wine-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:768px){.wine-grid{grid-template-columns:repeat(4,1fr)}}
+
+/* ── WINE CARD ── */
+.wine-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:transform var(--trans),box-shadow var(--trans);active:scale(0.97)}
+.wine-card:active{transform:scale(0.97)}
+.wine-card-photo{position:relative;aspect-ratio:3/4;background:var(--surface2);overflow:hidden}
+.wine-card-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.no-photo{display:flex;align-items:center;justify-content:center;height:100%;font-size:48px;opacity:0.3}
+.qty-badge{position:absolute;top:8px;right:8px;background:var(--wine);color:#fff;font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;min-width:26px;text-align:center}
+.qty-empty{background:var(--surface3);color:var(--text-muted)}
+.wine-card-body{padding:10px}
+.wine-card-name{font-size:13px;font-weight:600;line-height:1.3;margin-bottom:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.wine-card-appellation{font-size:11px;color:var(--text-muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wine-card-footer{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.millesime-badge{background:var(--surface3);color:var(--gold);font-size:11px;font-weight:700;padding:2px 6px;border-radius:6px}
+
+/* ── STARS ── */
+.stars{display:flex;gap:1px}
+.star{font-size:12px}
+.star.full,.star.half{color:var(--gold)}
+.star.empty{color:var(--surface3)}
+.star.half{opacity:0.7}
+.no-note{color:var(--text-muted);font-size:12px}
+
+/* ── FAB ── */
+.fab{position:fixed;bottom:24px;right:20px;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,var(--wine-light),var(--wine-dark));color:#fff;font-size:28px;border:none;cursor:pointer;box-shadow:0 4px 20px rgba(139,26,46,0.5);transition:transform var(--trans),box-shadow var(--trans);z-index:100;display:flex;align-items:center;justify-content:center;line-height:1}
+.fab:active{transform:scale(0.92);box-shadow:0 2px 10px rgba(139,26,46,0.4)}
+
+/* ── EMPTY STATE ── */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px;color:var(--text-muted);text-align:center}
+.empty-icon{font-size:64px;opacity:0.4}
+.loading-state{display:flex;align-items:center;justify-content:center;padding:60px;color:var(--text-muted);font-size:14px;gap:8px}
+
+/* ── ADD WINE PAGE ── */
+.add-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:32px}
+.add-content::-webkit-scrollbar{display:none}
+
+.photo-section{padding:16px}
+.photo-placeholder{border:2px dashed var(--border);border-radius:var(--radius);padding:32px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--surface)}
+.photo-btns{display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px}
+
+.captured-photo{position:relative;border-radius:var(--radius);overflow:hidden;background:var(--surface2)}
+.captured-photo img{width:100%;max-height:300px;object-fit:contain;display:block}
+.captured-actions{display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface);flex-wrap:wrap}
+.analyzing-indicator{font-size:13px;color:var(--gold);animation:pulse 1.5s infinite}
+.analyzed-badge{font-size:13px;color:var(--success);font-weight:600}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+/* ── CAMERA ── */
+.camera-container{position:fixed;inset:0;background:#000;z-index:1000;display:flex;flex-direction:column}
+#camera-video{flex:1;width:100%;object-fit:cover}
+.camera-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.camera-frame{width:260px;height:340px;border:2px solid rgba(255,255,255,0.6);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,0.4)}
+.camera-controls{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:24px 32px 40px;background:linear-gradient(transparent,rgba(0,0,0,0.7))}
+.capture-btn{width:70px;height:70px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,0.3);cursor:pointer;font-size:28px;display:flex;align-items:center;justify-content:center;transition:transform var(--trans)}
+.capture-btn:active{transform:scale(0.9)}
+.camera-cancel-btn{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:20px;padding:8px 16px;cursor:pointer;font-size:14px;backdrop-filter:blur(4px)}
+
+/* ── FORMS ── */
+.wine-form{padding:0 16px 16px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;color:var(--text-muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}
+.form-group input,.form-group select,.form-group textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;color:var(--text);font-size:15px;outline:none;transition:border-color var(--trans);font-family:inherit}
+.form-group input:focus,.form-group select:focus{border-color:var(--wine-light)}
+.form-group input::placeholder{color:var(--text-muted)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.qty-input{display:flex;align-items:center;gap:0}
+.qty-input input{text-align:center;border-radius:0;flex:1}
+.qty-btn{background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:11px 16px;font-size:18px;cursor:pointer;transition:background var(--trans)}
+.qty-btn:first-child{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.qty-btn:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.qty-btn:active{background:var(--wine-dark)}
+
+/* ── STAR RATING INPUT ── */
+.star-rating{display:flex;align-items:center;gap:6px}
+.star-input{font-size:28px;color:var(--surface3);cursor:pointer;transition:color var(--trans),transform var(--trans);line-height:1}
+.star-input:active{transform:scale(1.2)}
+.star-input.active{color:var(--gold)}
+.star-value{font-size:13px;color:var(--text-muted);margin-left:4px}
+
+/* ── BUTTONS ── */
+.btn-primary{background:linear-gradient(135deg,var(--wine-light),var(--wine-dark));color:#fff;border:none;border-radius:var(--radius-sm);padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity var(--trans),transform var(--trans);width:auto}
+.btn-primary:active{transform:scale(0.98);opacity:0.9}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed}
+.btn-primary.btn-full{width:100%}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;transition:background var(--trans)}
+.btn-secondary:active{background:var(--surface3)}
+.btn-secondary.btn-full{width:100%;margin-top:10px}
+.btn-danger{background:rgba(244,67,86,0.1);color:var(--error);border:1px solid rgba(244,67,86,0.3);border-radius:var(--radius-sm);padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;margin-top:10px;transition:background var(--trans)}
+.btn-danger:active{background:rgba(244,67,86,0.2)}
+.btn-sm{padding:8px 14px;font-size:13px;border-radius:20px}
+.btn-camera{background:linear-gradient(135deg,var(--wine-light),var(--wine-dark));color:#fff;border:none;border-radius:var(--radius-sm);padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;text-align:center}
+.btn-upload{display:block;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;text-align:center}
+
+/* ── DETAIL VIEW ── */
+.page-detail .topbar{background:transparent;border-bottom:none;position:absolute;top:0;left:0;right:0;z-index:10}
+.detail-photo{height:320px;background:var(--surface2);flex-shrink:0;position:relative;overflow:hidden}
+.detail-photo img{width:100%;height:100%;object-fit:cover}
+.no-photo-lg{display:flex;align-items:center;justify-content:center;height:100%;font-size:96px;opacity:0.15}
+.detail-content{padding:20px 16px;flex:1;overflow-y:auto}
+.detail-content::-webkit-scrollbar{display:none}
+.detail-name{font-size:24px;font-weight:700;letter-spacing:-0.5px;margin-bottom:4px}
+.detail-appellation{color:var(--gold);font-size:15px;font-weight:600;margin-bottom:16px}
+.detail-badges{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.detail-badge{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;display:flex;flex-direction:column;gap:2px;min-width:80px}
+.detail-badge span{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600}
+.detail-badge strong{font-size:18px;font-weight:700;color:var(--text)}
+.detail-section{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.detail-section:last-child{border-bottom:none}
+.detail-label{font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:6px}
+.detail-value{font-size:16px;color:var(--text)}
+.qty-control{display:flex;align-items:center;gap:10px}
+.qty-control button{background:var(--surface3);border:1px solid var(--border);color:var(--text);width:28px;height:28px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:background var(--trans)}
+.qty-control button:active{background:var(--wine-dark)}
+.qty-control strong{font-size:18px;min-width:24px;text-align:center}
+
+/* ── SETTINGS ── */
+.settings-content{padding:16px;display:flex;flex-direction:column;gap:4px;padding-bottom:40px}
+.settings-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.settings-section h2{font-size:16px;font-weight:700;margin-bottom:8px}
+.settings-hint{font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.5}
+.settings-hint strong{color:var(--gold)}
+.settings-warning{font-size:12px;color:var(--text-muted);background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);border-radius:var(--radius-sm);padding:8px 12px;margin-top:8px}
+.sql-code{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;font-size:11px;line-height:1.6;color:var(--text-muted);white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;margin-bottom:8px;overflow-x:auto}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:20px;font-size:14px;font-weight:600;z-index:9999;white-space:nowrap;box-shadow:var(--shadow);animation:toastIn 0.3s ease}
+.toast-success{background:var(--success);color:#fff}
+.toast-error{background:var(--error);color:#fff}
+.toast-info{background:var(--surface3);color:var(--text)}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ── LOADING SCREEN ── */
+.loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;color:var(--text-muted)}
+.loading-screen .wine-icon{font-size:64px;animation:bounce 1.5s ease infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
+/* ── STAT BAR ── */
+.stat-bar{display:flex;gap:0;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.stat-item{flex:1;padding:10px;text-align:center;border-right:1px solid var(--border)}
+.stat-item:last-child{border-right:none}
+.stat-num{font-size:20px;font-weight:700;color:var(--gold);display:block}
+.stat-lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="loading-screen">
+    <div class="wine-icon">🍷</div>
+    <p>Chargement…</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════
+   CONFIG (localStorage)
+═══════════════════════════════════════ */
+const LS = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k)) } catch { return null } },
+  set: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
+  del: k => localStorage.removeItem(k),
+};
+
+let cfg = LS.get('cave_cfg') || { url:'', key:'', aiProv:'claude', aiKey:'' };
+let db = null;
+
+/* ═══════════════════════════════════════
+   STATE
+═══════════════════════════════════════ */
+const S = {
+  view: 'collection',
+  wines: [], filtered: [],
+  search: '', fApp: '', fMill: '', sort: 'recent',
+  selected: null,
+  img: null, analyzed: null,
+  camStream: null, showCam: false,
+  analyzing: false, saving: false, loading: false,
+  toast: null,
+  starVal: 0,
+};
+
+/* ═══════════════════════════════════════
+   SUPABASE
+═══════════════════════════════════════ */
+function initDB() {
+  if (!cfg.url || !cfg.key) return false;
+  try { db = supabase.createClient(cfg.url, cfg.key); return true; }
+  catch(e) { console.error(e); return false; }
+}
+
+async function fetchWines() {
+  if (!db) return;
+  S.loading = true; render();
+  const { data, error } = await db.from('vin').select('*').order('created_at',{ascending:false});
+  S.loading = false;
+  if (error) { toast('Erreur : ' + error.message, 'error'); return; }
+  S.wines = data || [];
+  applyFilters();
+}
+
+async function saveWine(wine, blob) {
+  if (!db) return false;
+  S.saving = true; render();
+  let photo_url = null;
+  if (blob) {
+    const fname = Date.now() + '.jpg';
+    const { error: ue } = await db.storage.from('vins').upload(fname, blob, { contentType:'image/jpeg' });
+    if (!ue) {
+      const { data: ud } = db.storage.from('vins').getPublicUrl(fname);
+      photo_url = ud.publicUrl;
+    }
+  }
+  const { data, error } = await db.from('vin').insert([{ ...wine, photo_url }]).select().single();
+  S.saving = false;
+  if (error) { toast('Erreur sauvegarde : ' + error.message, 'error'); return false; }
+  S.wines.unshift(data); applyFilters();
+  toast('Vin ajouté !', 'success'); return true;
+}
+
+async function patchWine(id, upd) {
+  if (!db) return false;
+  const { data, error } = await db.from('vin').update(upd).eq('id',id).select().single();
+  if (error) { toast('Erreur : ' + error.message, 'error'); return false; }
+  const i = S.wines.findIndex(w=>w.id===id);
+  if (i>=0) S.wines[i] = data;
+  if (S.selected?.id===id) S.selected = data;
+  applyFilters(); return true;
+}
+
+async function removeWine(id) {
+  if (!db) return false;
+  const w = S.wines.find(w=>w.id===id);
+  if (w?.photo_url) {
+    const fname = w.photo_url.split('/').pop();
+    await db.storage.from('vins').remove([fname]);
+  }
+  const { error } = await db.from('vin').delete().eq('id',id);
+  if (error) { toast('Erreur : ' + error.message, 'error'); return false; }
+  S.wines = S.wines.filter(w=>w.id!==id); applyFilters();
+  toast('Vin supprimé', 'success'); return true;
+}
+
+/* ═══════════════════════════════════════
+   FILTERS
+═══════════════════════════════════════ */
+function applyFilters() {
+  let r = [...S.wines];
+  if (S.search) {
+    const q = S.search.toLowerCase();
+    r = r.filter(w => [w.nom,w.appellation,w.cepages].some(v=>v?.toLowerCase().includes(q)));
+  }
+  if (S.fApp)  r = r.filter(w => w.appellation === S.fApp);
+  if (S.fMill) r = r.filter(w => w.millesime === +S.fMill);
+  switch(S.sort) {
+    case 'nom_a':   r.sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')); break;
+    case 'nom_z':   r.sort((a,b)=>(b.nom||'').localeCompare(a.nom||'')); break;
+    case 'mill_d':  r.sort((a,b)=>(b.millesime||0)-(a.millesime||0)); break;
+    case 'mill_a':  r.sort((a,b)=>(a.millesime||0)-(b.millesime||0)); break;
+    case 'note':    r.sort((a,b)=>(b.note||0)-(a.note||0)); break;
+    default:        r.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  }
+  S.filtered = r; render();
+}
+
+/* ═══════════════════════════════════════
+   AI RECOGNITION
+═══════════════════════════════════════ */
+const AI_PROMPT = `Tu es un expert en vins. Analyse cette étiquette et retourne UNIQUEMENT un objet JSON valide (rien d'autre) avec ces champs (null si non visible) :
+{"nom":"domaine ou château","appellation":"région ou appellation","millesime":2020,"cepages":"cépages séparés par virgule"}`;
+
+async function analyzeLabel(b64) {
+  S.analyzing = true; render();
+  try {
+    let result;
+    if (cfg.aiProv === 'openai') result = await aiOpenAI(b64);
+    else result = await aiClaude(b64);
+    S.analyzed = result;
+  } catch(e) {
+    toast('Erreur IA : ' + e.message, 'error');
+    S.analyzed = {};
+  }
+  S.analyzing = false; render();
+}
+
+async function aiClaude(b64) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': cfg.aiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true',
+    },
+    body: JSON.stringify({
+      model:'claude-3-5-haiku-20241022',
+      max_tokens:512,
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64.replace(/^data:image\/\w+;base64,/,'')}},
+        {type:'text',text:AI_PROMPT}
+      ]}]
+    })
+  });
+  if (!res.ok) { const e=await res.json(); throw new Error(e.error?.message||'Erreur Claude'); }
+  const d = await res.json();
+  return JSON.parse(d.content[0].text.match(/\{[\s\S]*\}/)?.[0]||'{}');
+}
+
+async function aiOpenAI(b64) {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.aiKey},
+    body: JSON.stringify({
+      model:'gpt-4o',max_tokens:512,
+      messages:[{role:'user',content:[
+        {type:'image_url',image_url:{url:b64}},
+        {type:'text',text:AI_PROMPT}
+      ]}]
+    })
+  });
+  if (!res.ok) { const e=await res.json(); throw new Error(e.error?.message||'Erreur OpenAI'); }
+  const d = await res.json();
+  return JSON.parse(d.choices[0].message.content.match(/\{[\s\S]*\}/)?.[0]||'{}');
+}
+
+/* ═══════════════════════════════════════
+   CAMERA
+═══════════════════════════════════════ */
+async function startCam() {
+  try {
+    S.camStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:960} }
+    });
+    S.showCam = true; render();
+    setTimeout(()=>{
+      const v = document.getElementById('cam-video');
+      if(v){ v.srcObject = S.camStream; v.play(); }
+    }, 50);
+  } catch(e) { toast('Caméra non disponible : '+e.message,'error'); }
+}
+
+function stopCam() {
+  S.camStream?.getTracks().forEach(t=>t.stop());
+  S.camStream = null; S.showCam = false;
+}
+
+function snapPhoto() {
+  const v = document.getElementById('cam-video');
+  if (!v) return;
+  const c = document.createElement('canvas');
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext('2d').drawImage(v,0,0);
+  S.img = c.toDataURL('image/jpeg', 0.85);
+  stopCam(); render();
+}
+
+function b64ToBlob(b64) {
+  const b = atob(b64.split(',')[1]), m = b64.split(',')[0].split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(b.length), ia = new Uint8Array(ab);
+  for(let i=0;i<b.length;i++) ia[i]=b.charCodeAt(i);
+  return new Blob([ab],{type:m});
+}
+
+/* ═══════════════════════════════════════
+   TOAST
+═══════════════════════════════════════ */
+function toast(msg, type='info') {
+  S.toast = {msg,type}; render();
+  clearTimeout(S._toastTimer);
+  S._toastTimer = setTimeout(()=>{ S.toast=null; render(); }, 3000);
+}
+
+/* ═══════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════ */
+function go(view, data=null) {
+  stopCam();
+  S.view=view; S.img=null; S.analyzed=null; S.showCam=false; S.starVal=0;
+  if(data) S.selected=data;
+  render();
+}
+
+/* ═══════════════════════════════════════
+   RENDER
+═══════════════════════════════════════ */
+function render() {
+  const app = document.getElementById('app');
+  if(!app) return;
+
+  let html='';
+  if(!cfg.url||!cfg.key) {
+    html = vSettings();
+  } else {
+    switch(S.view) {
+      case 'settings': html=vSettings(); break;
+      case 'add':      html=vAdd(); break;
+      case 'detail':   html=vDetail(); break;
+      default:         html=vCollection();
+    }
+  }
+
+  if(S.toast) html += `<div class="toast toast-${S.toast.type}">${h(S.toast.msg)}</div>`;
+  app.innerHTML = html;
+
+  // Bind events
+  if(!cfg.url||!cfg.key||S.view==='settings') bindSettings();
+  else if(S.view==='add') bindAdd();
+  else if(S.view==='detail') {}
+  else bindCollection();
+
+  // Restore camera
+  if(S.showCam && S.camStream) {
+    const v=document.getElementById('cam-video');
+    if(v&&!v.srcObject){ v.srcObject=S.camStream; v.play(); }
+  }
+}
+
+/* ═══════════════════════════════════════
+   VIEW: COLLECTION
+═══════════════════════════════════════ */
+function vCollection() {
+  const apps=[...new Set(S.wines.map(w=>w.appellation).filter(Boolean))].sort();
+  const mills=[...new Set(S.wines.map(w=>w.millesime).filter(Boolean))].sort((a,b)=>b-a);
+  const total=S.wines.reduce((s,w)=>s+(w.quantite||0),0);
+  const apps_cnt=apps.length;
+  const avg=S.wines.length?( S.wines.filter(w=>w.note).reduce((s,w)=>s+(w.note||0),0)/(S.wines.filter(w=>w.note).length||1) ).toFixed(1):'—';
+
+  return `<div class="page">
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="logo">🍷</span>
+      <div><h1>Ma Cave</h1><span class="subtitle">${S.wines.length} vins · ${total} bouteilles</span></div>
+    </div>
+    <button class="icon-btn" onclick="go('settings')">⚙️</button>
+  </header>
+  <div class="stat-bar">
+    <div class="stat-item"><span class="stat-num">${S.wines.length}</span><span class="stat-lbl">Vins</span></div>
+    <div class="stat-item"><span class="stat-num">${total}</span><span class="stat-lbl">Bouteilles</span></div>
+    <div class="stat-item"><span class="stat-num">${apps_cnt}</span><span class="stat-lbl">Appellations</span></div>
+    <div class="stat-item"><span class="stat-num">${avg}</span><span class="stat-lbl">Note moy.</span></div>
+  </div>
+  <div class="search-bar"><input id="inp-search" type="text" placeholder="🔍 Rechercher…" value="${h(S.search)}" /></div>
+  <div class="filters-row">
+    <select id="sel-app">
+      <option value="">Toutes appellations</option>
+      ${apps.map(a=>`<option value="${h(a)}"${S.fApp===a?' selected':''}>${h(a)}</option>`).join('')}
+    </select>
+    <select id="sel-mill">
+      <option value="">Tous millésimes</option>
+      ${mills.map(m=>`<option value="${m}"${S.fMill==m?' selected':''}>${m}</option>`).join('')}
+    </select>
+    <select id="sel-sort">
+      <option value="recent"${S.sort==='recent'?' selected':''}>Récents</option>
+      <option value="nom_a"${S.sort==='nom_a'?' selected':''}>Nom A→Z</option>
+      <option value="nom_z"${S.sort==='nom_z'?' selected':''}>Nom Z→A</option>
+      <option value="mill_d"${S.sort==='mill_d'?' selected':''}>Millésime ↓</option>
+      <option value="mill_a"${S.sort==='mill_a'?' selected':''}>Millésime ↑</option>
+      <option value="note"${S.sort==='note'?' selected':''}>Meilleures notes</option>
+    </select>
+  </div>
+  <div class="page-scroll">
+    ${S.loading?'<div class="loading-state">⏳ Chargement…</div>':''}
+    ${!S.loading&&S.filtered.length===0?`<div class="empty-state">
+      <div class="empty-icon">${S.wines.length===0?'🍾':'🔍'}</div>
+      <p>${S.wines.length===0?'Votre cave est vide.<br>Ajoutez votre premier vin !':'Aucun résultat.'}
+      </p></div>`:''}
+    <div class="wine-grid">${S.filtered.map(wineCard).join('')}</div>
+  </div>
+  <button class="fab" onclick="go('add')">+</button>
+</div>`;
+}
+
+function wineCard(w) {
+  return `<div class="wine-card" onclick="go('detail',${JSON.stringify(w).replace(/"/g,'&quot;')})">
+  <div class="wine-card-photo">
+    ${w.photo_url?`<img src="${h(w.photo_url)}" alt="${h(w.nom)}" loading="lazy"/>`:'<div class="no-photo">🍷</div>'}
+    <div class="qty-badge${!w.quantite?' qty-empty':''}">${w.quantite||0}</div>
+  </div>
+  <div class="wine-card-body">
+    <div class="wine-card-name">${h(w.nom||'Sans nom')}</div>
+    ${w.appellation?`<div class="wine-card-appellation">${h(w.appellation)}</div>`:''}
+    <div class="wine-card-footer">
+      ${w.millesime?`<span class="millesime-badge">${w.millesime}</span>`:'<span></span>'}
+      ${stars(w.note)}
+    </div>
+  </div>
+</div>`;
+}
+
+function stars(note, big=false) {
+  if(!note) return '<span class="no-note">—</span>';
+  const sz = big?'font-size:20px':'';
+  let html=`<div class="stars" style="${sz}">`;
+  for(let i=1;i<=5;i++){
+    if(i<=Math.floor(note)) html+='<span class="star full">★</span>';
+    else if(i===Math.floor(note)+1&&note%1>=0.5) html+='<span class="star half">★</span>';
+    else html+='<span class="star empty">☆</span>';
+  }
+  return html+'</div>';
+}
+
+/* ═══════════════════════════════════════
+   VIEW: ADD WINE
+═══════════════════════════════════════ */
+function vAdd() {
+  const d = S.analyzed||{};
+  const camHTML = S.showCam
+    ? `<div class="camera-container">
+        <video id="cam-video" autoplay playsinline muted></video>
+        <div class="camera-overlay"><div class="camera-frame"></div></div>
+        <div class="camera-controls">
+          <button class="camera-cancel-btn" onclick="stopCam();render()">✕ Annuler</button>
+          <button class="capture-btn" onclick="snapPhoto()">📸</button>
+          <div></div>
+        </div>
+       </div>`
+    : S.img
+    ? `<div class="captured-photo">
+        <img src="${S.img}" alt="Étiquette"/>
+        <div class="captured-actions">
+          <button class="btn-secondary btn-sm" onclick="S.img=null;S.analyzed=null;render()">🔄 Reprendre</button>
+          ${!S.analyzed&&!S.analyzing?`<button class="btn-primary btn-sm" onclick="doAnalyze()">🤖 Analyser</button>`:''}
+          ${S.analyzing?'<span class="analyzing-indicator">🔍 Analyse…</span>':''}
+          ${S.analyzed&&!S.analyzing?'<span class="analyzed-badge">✅ Analysé</span>':''}
+        </div>
+       </div>`
+    : `<div class="photo-placeholder">
+        <div class="photo-btns">
+          <button class="btn-camera" onclick="startCam()">📷 Scanner l'étiquette</button>
+          <label class="btn-upload">🖼️ Importer une photo<input type="file" accept="image/*" style="display:none" onchange="handleFile(this)"/></label>
+        </div>
+       </div>`;
+
+  return `<div class="page">
+  <header class="topbar">
+    <button class="back-btn" onclick="go('collection')">← Retour</button>
+    <h1>Ajouter un vin</h1>
+    <div style="width:60px"></div>
+  </header>
+  <div class="add-content">
+    <div class="photo-section">${camHTML}</div>
+    <div class="wine-form">
+      <div class="form-group">
+        <label>Nom du domaine / château *</label>
+        <input type="text" id="f-nom" placeholder="ex : Château Pétrus" value="${h(d.nom||'')}"/>
+      </div>
+      <div class="form-group">
+        <label>Appellation / Région</label>
+        <input type="text" id="f-app" placeholder="ex : Pomerol, Bourgogne…" value="${h(d.appellation||'')}"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Millésime</label>
+          <input type="number" id="f-mill" placeholder="2020" min="1900" max="2025" value="${d.millesime||''}"/>
+        </div>
+        <div class="form-group">
+          <label>Quantité</label>
+          <div class="qty-input">
+            <button type="button" class="qty-btn" onclick="chgQtyForm(-1)">−</button>
+            <input type="number" id="f-qty" value="1" min="0" max="9999"/>
+            <button type="button" class="qty-btn" onclick="chgQtyForm(1)">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Cépages</label>
+        <input type="text" id="f-cep" placeholder="ex : Merlot, Cabernet Sauvignon" value="${h(d.cepages||'')}"/>
+      </div>
+      <div class="form-group">
+        <label>Ma note</label>
+        <div class="star-rating" id="star-rating">
+          ${[1,2,3,4,5].map(i=>`<span class="star-input${S.starVal>=i?' active':''}" data-v="${i}">★</span>`).join('')}
+          <span class="star-value">${S.starVal?S.starVal+'/5':'—'}</span>
+        </div>
+        <input type="hidden" id="f-note" value="${S.starVal||''}"/>
+      </div>
+      <button class="btn-primary btn-full" onclick="doSave()" ${S.saving?'disabled':''}>
+        ${S.saving?'⏳ Sauvegarde…':'✓ Ajouter à la cave'}
+      </button>
+    </div>
+  </div>
+</div>`;
+}
+
+/* ═══════════════════════════════════════
+   VIEW: DETAIL
+═══════════════════════════════════════ */
+function vDetail() {
+  const w = S.selected;
+  if(!w) { go('collection'); return ''; }
+  return `<div class="page page-detail">
+  <header class="topbar">
+    <button class="back-btn" onclick="go('collection')">← Retour</button>
+    <div></div>
+    <button class="delete-btn" onclick="doDelete('${w.id}')">🗑️</button>
+  </header>
+  <div class="page-scroll">
+    <div class="detail-photo">
+      ${w.photo_url?`<img src="${h(w.photo_url)}" alt="${h(w.nom)}"/>`:'<div class="no-photo-lg">🍷</div>'}
+    </div>
+    <div class="detail-content">
+      <h2 class="detail-name">${h(w.nom||'Sans nom')}</h2>
+      ${w.appellation?`<div class="detail-appellation">${h(w.appellation)}</div>`:''}
+      <div class="detail-badges">
+        ${w.millesime?`<div class="detail-badge"><span>Millésime</span><strong>${w.millesime}</strong></div>`:''}
+        <div class="detail-badge">
+          <span>Cave</span>
+          <div class="qty-control">
+            <button onclick="doQty('${w.id}',-1)">−</button>
+            <strong id="qty-disp">${w.quantite||0}</strong>
+            <button onclick="doQty('${w.id}',1)">+</button>
+          </div>
+        </div>
+        ${w.note?`<div class="detail-badge"><span>Note</span><strong>${w.note}/5</strong></div>`:''}
+      </div>
+      ${w.cepages?`<div class="detail-section"><div class="detail-label">Cépages</div><div class="detail-value">${h(w.cepages)}</div></div>`:''}
+      ${w.note?`<div class="detail-section"><div class="detail-label">Appréciation</div>${stars(w.note,true)}</div>`:''}
+      <div class="detail-section"><div class="detail-label">Ajouté le</div>
+        <div class="detail-value">${new Date(w.created_at).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+/* ═══════════════════════════════════════
+   VIEW: SETTINGS
+═══════════════════════════════════════ */
+const SQL_SETUP = `-- 1. Table des vins
+CREATE TABLE IF NOT EXISTS public.vin (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  nom        TEXT,
+  appellation TEXT,
+  millesime  INTEGER,
+  cepages    TEXT,
+  quantite   INTEGER DEFAULT 1,
+  note       NUMERIC(3,1),
+  photo_url  TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Sécurité (accès public pour app perso)
+ALTER TABLE public.vin ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cave_all" ON public.vin
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 3. Bucket de stockage photos
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('vins','vins',true) ON CONFLICT DO NOTHING;
+
+CREATE POLICY "cave_storage" ON storage.objects
+  FOR ALL USING (bucket_id = 'vins')
+  WITH CHECK (bucket_id = 'vins');`;
+
+function vSettings() {
+  return `<div class="page">
+  <header class="topbar">
+    ${cfg.url?`<button class="back-btn" onclick="go('collection')">← Retour</button>`:'<div></div>'}
+    <h1>Paramètres</h1>
+    <div style="width:60px"></div>
+  </header>
+  <div class="page-scroll">
+  <div class="settings-content">
+
+    <div class="settings-section">
+      <h2>🗄️ Supabase</h2>
+      <p class="settings-hint">Créez un compte gratuit sur <strong>supabase.com</strong>, créez un projet et copiez vos clés depuis <em>Project Settings → API</em>.</p>
+      <div class="form-group">
+        <label>URL du projet</label>
+        <input type="url" id="s-url" placeholder="https://xxxx.supabase.co" value="${h(cfg.url)}"/>
+      </div>
+      <div class="form-group">
+        <label>Clé anonyme (anon key)</label>
+        <input type="password" id="s-key" placeholder="eyJhbGci…" value="${h(cfg.key)}"/>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>🤖 Reconnaissance IA</h2>
+      <p class="settings-hint">Choisissez un fournisseur pour analyser les étiquettes automatiquement.</p>
+      <div class="form-group">
+        <label>Fournisseur</label>
+        <select id="s-prov">
+          <option value="claude"${cfg.aiProv==='claude'?' selected':''}>Claude (Anthropic) — Recommandé</option>
+          <option value="openai"${cfg.aiProv==='openai'?' selected':''}>GPT-4o (OpenAI)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Clé API</label>
+        <input type="password" id="s-ai" placeholder="sk-ant-… ou sk-…" value="${h(cfg.aiKey)}"/>
+      </div>
+      <div class="settings-warning">⚠️ Les clés sont stockées uniquement dans votre navigateur (localStorage). Ne partagez jamais ce fichier HTML avec vos clés pré-remplies.</div>
+    </div>
+
+    <div class="settings-section">
+      <h2>🗃️ Initialisation SQL</h2>
+      <p class="settings-hint">Exécutez ce script dans <strong>Supabase → SQL Editor</strong> avant la première utilisation :</p>
+      <pre class="sql-code">${h(SQL_SETUP)}</pre>
+      <button class="btn-secondary btn-sm" onclick="copySQL()">📋 Copier le SQL</button>
+    </div>
+
+    <button class="btn-primary btn-full" onclick="saveSettings()">💾 Sauvegarder et se connecter</button>
+    ${cfg.url?`<button class="btn-danger" onclick="resetCfg()">🗑️ Réinitialiser la configuration</button>`:''}
+  </div>
+  </div>
+</div>`;
+}
+
+/* ═══════════════════════════════════════
+   EVENT BINDERS
+═══════════════════════════════════════ */
+function bindCollection() {
+  q('#inp-search')?.addEventListener('input', e=>{ S.search=e.target.value; applyFilters(); });
+  q('#sel-app')?.addEventListener('change',   e=>{ S.fApp=e.target.value;   applyFilters(); });
+  q('#sel-mill')?.addEventListener('change',  e=>{ S.fMill=e.target.value;  applyFilters(); });
+  q('#sel-sort')?.addEventListener('change',  e=>{ S.sort=e.target.value;   applyFilters(); });
+}
+
+function bindAdd() {
+  const stars = document.querySelectorAll('.star-input');
+  stars.forEach(s => s.addEventListener('click', ()=>{
+    const v = +s.dataset.v;
+    S.starVal = S.starVal===v ? 0 : v;
+    document.querySelectorAll('.star-input').forEach((el,i)=>el.classList.toggle('active',i<S.starVal));
+    q('.star-value').textContent = S.starVal ? S.starVal+'/5' : '—';
+    const ni = q('#f-note'); if(ni) ni.value = S.starVal||'';
+  }));
+}
+
+function bindSettings() {}
+
+/* ═══════════════════════════════════════
+   GLOBAL ACTIONS (called from inline HTML)
+═══════════════════════════════════════ */
+function doAnalyze() {
+  if(!S.img) return;
+  if(!cfg.aiKey) { toast('Clé API IA non configurée','error'); return; }
+  analyzeLabel(S.img);
+}
+
+function handleFile(input) {
+  const f = input.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = e => { S.img=e.target.result; render(); };
+  r.readAsDataURL(f);
+}
+
+function chgQtyForm(d) {
+  const i=q('#f-qty'); if(!i) return;
+  i.value = Math.max(0,(+i.value||0)+d);
+}
+
+async function doSave() {
+  const nom = q('#f-nom')?.value?.trim();
+  if(!nom) { toast('Le nom est requis','error'); return; }
+  const wine = {
+    nom,
+    appellation: q('#f-app')?.value?.trim()||null,
+    millesime:   +q('#f-mill')?.value||null,
+    cepages:     q('#f-cep')?.value?.trim()||null,
+    quantite:    +q('#f-qty')?.value||0,
+    note:        +q('#f-note')?.value||null,
+  };
+  const blob = S.img ? b64ToBlob(S.img) : null;
+  const ok = await saveWine(wine, blob);
+  if(ok) go('collection');
+}
+
+async function doQty(id, d) {
+  const w = S.wines.find(w=>w.id===id); if(!w) return;
+  const nq = Math.max(0,(w.quantite||0)+d);
+  const ok = await patchWine(id,{quantite:nq});
+  if(ok) { const el=q('#qty-disp'); if(el) el.textContent=nq; }
+}
+
+async function doDelete(id) {
+  if(!confirm('Supprimer ce vin de la cave ?')) return;
+  const ok = await removeWine(id);
+  if(ok) go('collection');
+}
+
+function saveSettings() {
+  const url=q('#s-url')?.value?.trim();
+  const key=q('#s-key')?.value?.trim();
+  const prov=q('#s-prov')?.value;
+  const aiKey=q('#s-ai')?.value?.trim();
+  if(!url||!key) { toast('URL et clé Supabase requis','error'); return; }
+  cfg={url,key,aiProv:prov,aiKey};
+  LS.set('cave_cfg',cfg);
+  if(initDB()) {
+    toast('Connecté !','success');
+    setTimeout(()=>{ go('collection'); fetchWines(); },800);
+  } else {
+    toast('Erreur de connexion Supabase','error');
+  }
+}
+
+function resetCfg() {
+  if(!confirm('Réinitialiser ? Vos données restent sur Supabase.')) return;
+  LS.del('cave_cfg'); cfg={url:'',key:'',aiProv:'claude',aiKey:''}; db=null; render();
+}
+
+function copySQL() {
+  navigator.clipboard.writeText(SQL_SETUP).then(()=>toast('SQL copié !','success')).catch(()=>toast('Copiez le texte manuellement','error'));
+}
+
+/* ═══════════════════════════════════════
+   UTILS
+═══════════════════════════════════════ */
+function h(s){ return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function q(sel){ return document.querySelector(sel); }
+
+// Expose to inline handlers
+Object.assign(window,{go,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,saveSettings,resetCfg,copySQL,render,S});
+
+/* ═══════════════════════════════════════
+   BOOT
+═══════════════════════════════════════ */
+(async()=>{
+  if(initDB()){
+    S.view='collection'; render();
+    await fetchWines();
+  } else {
+    S.view='settings'; render();
+  }
+})();
+</script>
+</body>
+</html>
