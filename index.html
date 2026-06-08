@@ -389,21 +389,26 @@ async function aiOpenAI(b64) {
 }
 
 async function aiGemini(b64) {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(cfg.aiKey);
-  const res = await fetch(url, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      contents:[{parts:[
-        {inline_data:{mime_type:'image/jpeg',data:b64.replace(/^data:image\/\w+;base64,/,'')}},
-        {text:AI_PROMPT}
-      ]}]
-    })
+  const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+  const base = 'https://generativelanguage.googleapis.com/v1beta/models/';
+  const payload = JSON.stringify({
+    contents:[{parts:[
+      {inline_data:{mime_type:'image/jpeg',data:b64.replace(/^data:image\/\w+;base64,/,'')}},
+      {text:AI_PROMPT}
+    ]}]
   });
-  if (!res.ok) { const e=await res.json(); throw new Error(e.error?.message||'Erreur Gemini'); }
-  const d = await res.json();
-  const text = d.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-  return JSON.parse(text.match(/\{[\s\S]*\}/)?.[0]||'{}');
+  for (let i = 0; i < models.length; i++) {
+    const url = base + models[i] + ':generateContent?key=' + encodeURIComponent(cfg.aiKey);
+    const res = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:payload});
+    if (!res.ok) {
+      const e = await res.json();
+      if (i < models.length - 1) continue; // essaie le modèle suivant
+      throw new Error(e.error?.message || 'Erreur Gemini');
+    }
+    const d = await res.json();
+    const text = d.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    return JSON.parse(text.match(/\{[\s\S]*\}/)?.[0]||'{}');
+  }
 }
 
 /* ═══════════════════════════════════════
