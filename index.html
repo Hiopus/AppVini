@@ -389,7 +389,7 @@ async function aiOpenAI(b64) {
 }
 
 async function aiGemini(b64) {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=' + encodeURIComponent(cfg.aiKey);
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(cfg.aiKey);
   const res = await fetch(url, {
     method:'POST',
     headers:{'Content-Type':'application/json'},
