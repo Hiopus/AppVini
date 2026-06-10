@@ -959,6 +959,13 @@ function vSettings() {
       <div class="settings-warning">⚠️ Les clés sont stockées uniquement dans votre navigateur (localStorage). Ne partagez jamais ce fichier HTML avec vos clés pré-remplies.</div>
     </div>
 
+    ${cfg.url?`<div class="settings-section">
+      <h2>📦 Export / Import</h2>
+      <p class="settings-hint">Exportez vos fiches en JSON, faites-les enrichir par <strong>Claude</strong> (copiez-collez le fichier dans la conversation), puis réimportez le fichier renvoyé : les fiches existantes seront mises à jour. Une consigne incluse dans le fichier demande à l'IA de ne jamais toucher à vos notes personnelles.</p>
+      <button class="btn-secondary btn-full" onclick="exportJSON()" style="margin-top:0">⬇️ Exporter mes vins (JSON)</button>
+      <label class="btn-upload" style="margin-top:10px">⬆️ Importer un fichier JSON<input type="file" accept=".json,application/json" style="display:none" onchange="importJSON(this)"/></label>
+    </div>`:''}
+
     <div class="settings-section">
       <h2>🗃️ Initialisation SQL</h2>
       <p class="settings-hint">Exécutez ce script dans <strong>Supabase → SQL Editor</strong> avant la première utilisation :</p>
@@ -1090,6 +1097,59 @@ function resetCfg() {
   LS.del('cave_cfg'); cfg={url:'',key:'',aiProv:'claude',aiKey:''}; db=null; render();
 }
 
+/* ── EXPORT / IMPORT JSON ── */
+const EXPORT_FIELDS = ['nom','cuvee','appellation','region','pays','categorie','millesime','degre_alcool','cepages','quantite','description','type_sol','accords_mets','temp_service','garde','date_degustation','contexte','note','aromes','commentaire'];
+
+function exportJSON() {
+  if(!S.wines.length){ toast('Aucun vin à exporter','info'); return; }
+  const vins = S.wines.map(w => {
+    const o = { id: w.id };
+    EXPORT_FIELDS.forEach(f => o[f] = w[f] ?? null);
+    return o;
+  });
+  const data = {
+    application: 'AppVini',
+    exporte_le: new Date().toISOString().slice(0,10),
+    consigne_pour_ia: "Tu es un expert en vins, bières et spiritueux. Complète ou corrige les fiches ci-dessous grâce à tes connaissances : description, type_sol, accords_mets, temp_service, garde, categorie (valeurs possibles : rouge, blanc, rose, effervescent, moelleux, orange, biere, spiritueux, liqueur, autre), cepages, region, pays, degre_alcool, millesime. NE MODIFIE JAMAIS les champs id, note, commentaire, aromes, contexte, date_degustation et quantite : ce sont les notes personnelles du dégustateur. Retourne le JSON complet, dans le même format, sans rien retirer.",
+    vins
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'appvini-export-' + data.exporte_le + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(S.wines.length + ' vin(s) exporté(s)','success');
+}
+
+async function importJSON(input) {
+  const f = input.files[0]; if(!f) return;
+  let data;
+  try { data = JSON.parse(await f.text()); }
+  catch { toast('Fichier JSON invalide','error'); input.value=''; return; }
+  const vins = Array.isArray(data) ? data : data.vins;
+  if(!Array.isArray(vins)) { toast('Format non reconnu','error'); input.value=''; return; }
+  if(!confirm('Mettre à jour vos fiches depuis ce fichier (' + vins.length + ' entrées) ?')) { input.value=''; return; }
+  let maj = 0, ignores = 0;
+  for(const v of vins){
+    const w = S.wines.find(x => x.id === v.id);
+    if(!w){ ignores++; continue; }
+    const upd = {};
+    EXPORT_FIELDS.forEach(fld => {
+      if(v[fld] !== undefined && String(v[fld] ?? '') !== String(w[fld] ?? '')) upd[fld] = v[fld];
+    });
+    if(!Object.keys(upd).length){ ignores++; continue; }
+    const { data: nw, error } = await db.from('vin').update(upd).eq('id', v.id).select().single();
+    if(error){ ignores++; continue; }
+    const i = S.wines.findIndex(x => x.id === v.id);
+    if(i >= 0) S.wines[i] = nw;
+    maj++;
+  }
+  input.value = '';
+  applyFilters();
+  toast(maj + ' fiche(s) mise(s) à jour' + (ignores ? ', ' + ignores + ' inchangée(s)' : ''), 'success');
+}
+
 function copySQL() {
   navigator.clipboard.writeText(SQL_SETUP).then(()=>toast('SQL copié !','success')).catch(()=>toast('Copiez le texte manuellement','error'));
 }
@@ -1101,7 +1161,7 @@ function h(s){ return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&
 function q(sel){ return document.querySelector(sel); }
 
 // Expose to inline handlers
-Object.assign(window,{go,openDetail,setCat,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,saveSettings,resetCfg,copySQL,render,S});
+Object.assign(window,{go,openDetail,setCat,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,saveSettings,resetCfg,copySQL,exportJSON,importJSON,render,S});
 
 /* ═══════════════════════════════════════
    BOOT
