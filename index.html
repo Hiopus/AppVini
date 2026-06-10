@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Ma Cave à Vin</title>
+<meta name="theme-color" content="#0C0508" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/png" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="AppVini" />
+<title>AppVini — Carnet de dégustation</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root {
@@ -1097,6 +1104,11 @@ Object.assign(window,{go,openDetail,setCat,startCam,stopCam,snapPhoto,handleFile
 /* ═══════════════════════════════════════
    BOOT
 ═══════════════════════════════════════ */
+// Enregistrement du service worker (installation + hors-ligne)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
 (async()=>{
   if(initDB()){
     S.view='collection'; render();

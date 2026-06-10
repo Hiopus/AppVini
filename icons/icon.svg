@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8B1A2E"/>
+      <stop offset="1" stop-color="#3D0A14"/>
+    </linearGradient>
+    <linearGradient id="vin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B03050"/>
+      <stop offset="1" stop-color="#5A0F1E"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- bol du verre -->
+  <path d="M156 118 h200 v36 c0 70 -44 110 -100 110 s-100 -40 -100 -110 z"
+        fill="none" stroke="#C9A84C" stroke-width="14"/>
+  <!-- vin dans le verre -->
+  <path d="M165 160 h182 v-0 c-4 62 -44 96 -91 96 s-87 -34 -91 -96 z" fill="url(#vin)"/>
+  <!-- pied -->
+  <rect x="248" y="264" width="16" height="92" rx="8" fill="#C9A84C"/>
+  <!-- base -->
+  <path d="M176 376 q80 -22 160 0 q4 14 -10 16 q-70 10 -140 0 q-14 -2 -10 -16 z" fill="#C9A84C"/>
+</svg>

@@ -1,0 +1,17 @@
+{
+  "name": "AppVini — Carnet de dégustation",
+  "short_name": "AppVini",
+  "description": "Carnet de dégustation personnel : vins, bières artisanales et spiritueux",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0C0508",
+  "theme_color": "#0C0508",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
