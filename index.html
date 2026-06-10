@@ -141,6 +141,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .star-input.active{color:var(--gold)}
 .star-value{font-size:13px;color:var(--text-muted);margin-left:4px}
 
+/* ── FORM SECTIONS & AI FLAGS ── */
+.form-section{font-size:14px;font-weight:700;color:var(--gold);margin:24px 0 14px;padding-top:16px;border-top:1px solid var(--border)}
+.ai-flag{display:inline-block;font-size:11px;color:var(--gold);background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.25);border-radius:10px;padding:1px 8px;margin-left:6px;font-weight:600;vertical-align:middle;text-transform:none;letter-spacing:0}
+.detail-h3{font-size:14px;font-weight:700;color:var(--gold);margin:4px 0 16px;padding-top:18px;border-top:2px solid var(--border);text-transform:uppercase;letter-spacing:0.5px}
+.form-group textarea{resize:vertical;min-height:70px}
+
 /* ── BUTTONS ── */
 .btn-primary{background:linear-gradient(135deg,var(--wine-light),var(--wine-dark));color:#fff;border:none;border-radius:var(--radius-sm);padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity var(--trans),transform var(--trans);width:auto}
 .btn-primary:active{transform:scale(0.98);opacity:0.9}
@@ -312,7 +318,7 @@ function applyFilters() {
   let r = [...S.wines];
   if (S.search) {
     const q = S.search.toLowerCase();
-    r = r.filter(w => [w.nom,w.appellation,w.cepages].some(v=>v?.toLowerCase().includes(q)));
+    r = r.filter(w => [w.nom,w.cuvee,w.appellation,w.region,w.pays,w.cepages,w.aromes].some(v=>v?.toLowerCase().includes(q)));
   }
   if (S.fApp)  r = r.filter(w => w.appellation === S.fApp);
   if (S.fMill) r = r.filter(w => w.millesime === +S.fMill);
@@ -330,8 +336,40 @@ function applyFilters() {
 /* ═══════════════════════════════════════
    AI RECOGNITION
 ═══════════════════════════════════════ */
-const AI_PROMPT = `Tu es un expert en vins. Analyse cette étiquette et retourne UNIQUEMENT un objet JSON valide (rien d'autre) avec ces champs (null si non visible) :
-{"nom":"domaine ou château","appellation":"région ou appellation","millesime":2020,"cepages":"cépages séparés par virgule"}`;
+const AI_PROMPT = `Tu es un expert en vins, bières artisanales et spiritueux. Analyse cette étiquette et retourne UNIQUEMENT un objet JSON valide (rien d'autre).
+Remplis d'abord les champs avec ce qui est LISIBLE sur l'étiquette, puis enrichis les champs manquants avec tes connaissances sur ce produit précis. Mets null quand tu ne sais pas.
+{
+"nom":"nom du domaine, château, brasserie ou distillerie",
+"cuvee":"nom de la cuvée si présent",
+"appellation":"appellation officielle",
+"region":"région de production",
+"pays":"pays de production",
+"categorie":"une seule valeur parmi : rouge, blanc, rose, effervescent, moelleux, orange, biere, spiritueux, liqueur, autre",
+"millesime":2020,
+"cepages":"cépages avec pourcentages si connus, ex : Syrah 80 %, Grenache 20 % (null pour bière ou spiritueux)",
+"degre_alcool":13.5,
+"description":"2 à 3 phrases en français décrivant le produit, son style et son caractère",
+"type_sol":"type de sol du vignoble (null si non pertinent)",
+"accords_mets":"3 à 5 accords mets-vins séparés par des virgules",
+"temp_service":"température de service, ex : 16-18 °C",
+"garde":"fenêtre de dégustation, ex : à boire entre 2026 et 2032",
+"incertain":["liste ici les noms des champs que tu as remplis grâce à tes connaissances SANS pouvoir les lire sur l'étiquette, ou dont tu n'es pas certain"]
+}`;
+
+/* Catégories de produits (vins + autres) */
+const CATS = [
+  ['rouge','🔴 Vin rouge'],
+  ['blanc','⚪ Vin blanc'],
+  ['rose','🌸 Vin rosé'],
+  ['effervescent','🍾 Effervescent'],
+  ['moelleux','🍯 Moelleux / liquoreux'],
+  ['orange','🟠 Vin orange'],
+  ['biere','🍺 Bière'],
+  ['spiritueux','🥃 Spiritueux'],
+  ['liqueur','🌿 Liqueur'],
+  ['autre','✨ Autre'],
+];
+function catLabel(v){ const c=CATS.find(c=>c[0]===v); return c?c[1]:''; }
 
 async function analyzeLabel(b64) {
   S.analyzing = true; render();
@@ -558,8 +596,13 @@ function vCollection() {
 </div>`;
 }
 
+function openDetail(id) {
+  const w = S.wines.find(x=>x.id===id);
+  if(w) go('detail', w);
+}
+
 function wineCard(w) {
-  return `<div class="wine-card" onclick="go('detail',${JSON.stringify(w).replace(/"/g,'&quot;')})">
+  return `<div class="wine-card" onclick="openDetail('${w.id}')">
   <div class="wine-card-photo">
     ${w.photo_url?`<img src="${h(w.photo_url)}" alt="${h(w.nom)}" loading="lazy"/>`:'<div class="no-photo">🍷</div>'}
     <div class="qty-badge${!w.quantite?' qty-empty':''}">${w.quantite||0}</div>
@@ -629,20 +672,47 @@ function vAdd() {
     <div class="photo-section">${camHTML}</div>
     <div class="wine-form">
       <div class="form-group">
-        <label>Nom du domaine / château *</label>
-        <input type="text" id="f-nom" placeholder="ex : Château Pétrus" value="${h(d.nom||'')}"/>
+        <label>Nom du domaine / producteur *</label>
+        <input type="text" id="f-nom" placeholder="ex : Château Pétrus, Brasserie X…" value="${h(d.nom||'')}"/>
       </div>
       <div class="form-group">
-        <label>Appellation / Région</label>
-        <input type="text" id="f-app" placeholder="ex : Pomerol, Bourgogne…" value="${h(d.appellation||'')}"/>
+        <label>Cuvée</label>
+        <input type="text" id="f-cuvee" placeholder="ex : Vieilles Vignes" value="${h(d.cuvee||'')}"/>
+      </div>
+      <div class="form-group">
+        <label>Appellation</label>
+        <input type="text" id="f-app" placeholder="ex : Pomerol, Chablis…" value="${h(d.appellation||'')}"/>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Millésime</label>
-          <input type="number" id="f-mill" placeholder="2020" min="1900" max="2025" value="${d.millesime||''}"/>
+          <label>Région</label>
+          <input type="text" id="f-region" placeholder="ex : Bourgogne" value="${h(d.region||'')}"/>
         </div>
         <div class="form-group">
-          <label>Quantité</label>
+          <label>Pays</label>
+          <input type="text" id="f-pays" placeholder="ex : France" value="${h(d.pays||'')}"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Catégorie</label>
+          <select id="f-cat">
+            <option value="">—</option>
+            ${CATS.map(([v,l])=>`<option value="${v}"${d.categorie===v?' selected':''}>${l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Millésime</label>
+          <input type="number" id="f-mill" placeholder="2020" min="1900" max="2035" value="${d.millesime||''}"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Degré (% alc.)</label>
+          <input type="number" id="f-degre" placeholder="13.5" step="0.1" min="0" max="80" value="${d.degre_alcool||''}"/>
+        </div>
+        <div class="form-group">
+          <label>Quantité en cave</label>
           <div class="qty-input">
             <button type="button" class="qty-btn" onclick="chgQtyForm(-1)">−</button>
             <input type="number" id="f-qty" value="1" min="0" max="9999"/>
@@ -652,7 +722,41 @@ function vAdd() {
       </div>
       <div class="form-group">
         <label>Cépages</label>
-        <input type="text" id="f-cep" placeholder="ex : Merlot, Cabernet Sauvignon" value="${h(d.cepages||'')}"/>
+        <input type="text" id="f-cep" placeholder="ex : Merlot 60 %, Cabernet Sauvignon 40 %" value="${h(d.cepages||'')}"/>
+      </div>
+
+      <div class="form-section">✨ Fiche descriptive (remplie par l'IA, modifiable)</div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="f-desc" rows="3" placeholder="Style, caractère du produit…">${h(d.description||'')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Type de sol</label>
+        <input type="text" id="f-sol" placeholder="ex : argilo-calcaire" value="${h(d.type_sol||'')}"/>
+      </div>
+      <div class="form-group">
+        <label>Accords mets-vins</label>
+        <input type="text" id="f-accords" placeholder="ex : magret de canard, fromages affinés…" value="${h(d.accords_mets||'')}"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Température de service</label>
+          <input type="text" id="f-temp" placeholder="ex : 16-18 °C" value="${h(d.temp_service||'')}"/>
+        </div>
+        <div class="form-group">
+          <label>Garde</label>
+          <input type="text" id="f-garde" placeholder="ex : 2026-2032" value="${h(d.garde||'')}"/>
+        </div>
+      </div>
+
+      <div class="form-section">🍷 Ma dégustation</div>
+      <div class="form-group">
+        <label>Date de dégustation</label>
+        <input type="date" id="f-date" value="${new Date().toISOString().slice(0,10)}"/>
+      </div>
+      <div class="form-group">
+        <label>Contexte</label>
+        <input type="text" id="f-ctx" placeholder="Où, avec qui, à quelle occasion…"/>
       </div>
       <div class="form-group">
         <label>Ma note</label>
@@ -661,6 +765,14 @@ function vAdd() {
           <span class="star-value">${S.starVal?S.starVal+'/5':'—'}</span>
         </div>
         <input type="hidden" id="f-note" value="${S.starVal||''}"/>
+      </div>
+      <div class="form-group">
+        <label>Arômes perçus</label>
+        <input type="text" id="f-aromes" placeholder="ex : fruits rouges, poivre, sous-bois…"/>
+      </div>
+      <div class="form-group">
+        <label>Mon commentaire</label>
+        <textarea id="f-comm" rows="3" placeholder="Mes impressions…"></textarea>
       </div>
       <button class="btn-primary btn-full" onclick="doSave()" ${S.saving?'disabled':''}>
         ${S.saving?'⏳ Sauvegarde…':'✓ Ajouter à la cave'}
@@ -673,9 +785,21 @@ function vAdd() {
 /* ═══════════════════════════════════════
    VIEW: DETAIL
 ═══════════════════════════════════════ */
+function aiFlag(w, field) {
+  return w.ai_meta?.incertain?.includes(field)
+    ? '<span class="ai-flag">⚠️ info IA à vérifier</span>' : '';
+}
+
+function dSection(w, field, label, value) {
+  if(!value) return '';
+  return `<div class="detail-section"><div class="detail-label">${label}${aiFlag(w,field)}</div><div class="detail-value">${h(value)}</div></div>`;
+}
+
 function vDetail() {
   const w = S.selected;
   if(!w) { go('collection'); return ''; }
+  const sousTitre = [w.appellation, w.region, w.pays].filter(Boolean).join(' · ');
+  const hasDegust = w.date_degustation||w.contexte||w.note||w.aromes||w.commentaire;
   return `<div class="page page-detail">
   <header class="topbar">
     <button class="back-btn" onclick="go('collection')">← Retour</button>
@@ -687,10 +811,12 @@ function vDetail() {
       ${w.photo_url?`<img src="${h(w.photo_url)}" alt="${h(w.nom)}"/>`:'<div class="no-photo-lg">🍷</div>'}
     </div>
     <div class="detail-content">
-      <h2 class="detail-name">${h(w.nom||'Sans nom')}</h2>
-      ${w.appellation?`<div class="detail-appellation">${h(w.appellation)}</div>`:''}
+      <h2 class="detail-name">${h(w.nom||'Sans nom')}${w.cuvee?` — ${h(w.cuvee)}`:''}</h2>
+      ${sousTitre?`<div class="detail-appellation">${h(sousTitre)}</div>`:''}
       <div class="detail-badges">
+        ${w.categorie?`<div class="detail-badge"><span>Catégorie</span><strong style="font-size:14px">${catLabel(w.categorie)}</strong></div>`:''}
         ${w.millesime?`<div class="detail-badge"><span>Millésime</span><strong>${w.millesime}</strong></div>`:''}
+        ${w.degre_alcool?`<div class="detail-badge"><span>Degré</span><strong>${w.degre_alcool}%</strong></div>`:''}
         <div class="detail-badge">
           <span>Cave</span>
           <div class="qty-control">
@@ -701,8 +827,18 @@ function vDetail() {
         </div>
         ${w.note?`<div class="detail-badge"><span>Note</span><strong>${w.note}/5</strong></div>`:''}
       </div>
-      ${w.cepages?`<div class="detail-section"><div class="detail-label">Cépages</div><div class="detail-value">${h(w.cepages)}</div></div>`:''}
+      ${dSection(w,'description','Description',w.description)}
+      ${dSection(w,'cepages','Cépages',w.cepages)}
+      ${dSection(w,'type_sol','Type de sol',w.type_sol)}
+      ${dSection(w,'accords_mets','Accords mets-vins',w.accords_mets)}
+      ${dSection(w,'temp_service','Température de service',w.temp_service)}
+      ${dSection(w,'garde','Garde',w.garde)}
+      ${hasDegust?`<div class="detail-h3">🍷 Ma dégustation</div>`:''}
+      ${w.date_degustation?`<div class="detail-section"><div class="detail-label">Dégusté le</div><div class="detail-value">${new Date(w.date_degustation).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</div></div>`:''}
+      ${dSection(w,'contexte','Contexte',w.contexte)}
       ${w.note?`<div class="detail-section"><div class="detail-label">Appréciation</div>${stars(w.note,true)}</div>`:''}
+      ${dSection(w,'aromes','Arômes perçus',w.aromes)}
+      ${dSection(w,'commentaire','Mon commentaire',w.commentaire)}
       <div class="detail-section"><div class="detail-label">Ajouté le</div>
         <div class="detail-value">${new Date(w.created_at).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</div>
       </div>
@@ -714,17 +850,32 @@ function vDetail() {
 /* ═══════════════════════════════════════
    VIEW: SETTINGS
 ═══════════════════════════════════════ */
-const SQL_SETUP = `-- 1. Table des vins
+const SQL_SETUP = `-- 1. Table des vins (carnet de dégustation)
 CREATE TABLE IF NOT EXISTS public.vin (
-  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  nom        TEXT,
-  appellation TEXT,
-  millesime  INTEGER,
-  cepages    TEXT,
-  quantite   INTEGER DEFAULT 1,
-  note       NUMERIC(3,1),
-  photo_url  TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  nom          TEXT,
+  cuvee        TEXT,
+  appellation  TEXT,
+  region       TEXT,
+  pays         TEXT,
+  categorie    TEXT,
+  millesime    INTEGER,
+  degre_alcool NUMERIC(4,1),
+  cepages      TEXT,
+  quantite     INTEGER DEFAULT 1,
+  description  TEXT,
+  type_sol     TEXT,
+  accords_mets TEXT,
+  temp_service TEXT,
+  garde        TEXT,
+  date_degustation DATE,
+  contexte     TEXT,
+  note         NUMERIC(3,1),
+  aromes       TEXT,
+  commentaire  TEXT,
+  ai_meta      JSONB DEFAULT '{}'::jsonb,
+  photo_url    TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 2. Sécurité (accès public pour app perso)
@@ -844,12 +995,35 @@ async function doSave() {
   if(!nom) { toast('Le nom est requis','error'); return; }
   const wine = {
     nom,
-    appellation: q('#f-app')?.value?.trim()||null,
-    millesime:   +q('#f-mill')?.value||null,
-    cepages:     q('#f-cep')?.value?.trim()||null,
-    quantite:    +q('#f-qty')?.value||0,
-    note:        +q('#f-note')?.value||null,
+    cuvee:        q('#f-cuvee')?.value?.trim()||null,
+    appellation:  q('#f-app')?.value?.trim()||null,
+    region:       q('#f-region')?.value?.trim()||null,
+    pays:         q('#f-pays')?.value?.trim()||null,
+    categorie:    q('#f-cat')?.value||null,
+    millesime:    +q('#f-mill')?.value||null,
+    degre_alcool: +q('#f-degre')?.value||null,
+    cepages:      q('#f-cep')?.value?.trim()||null,
+    quantite:     +q('#f-qty')?.value||0,
+    description:  q('#f-desc')?.value?.trim()||null,
+    type_sol:     q('#f-sol')?.value?.trim()||null,
+    accords_mets: q('#f-accords')?.value?.trim()||null,
+    temp_service: q('#f-temp')?.value?.trim()||null,
+    garde:        q('#f-garde')?.value?.trim()||null,
+    date_degustation: q('#f-date')?.value||null,
+    contexte:     q('#f-ctx')?.value?.trim()||null,
+    note:         +q('#f-note')?.value||null,
+    aromes:       q('#f-aromes')?.value?.trim()||null,
+    commentaire:  q('#f-comm')?.value?.trim()||null,
   };
+  // On garde la trace des champs IA incertains, sauf si tu les as corrigés à la main
+  let ai_meta = {};
+  if (S.analyzed) {
+    const incertain = (S.analyzed.incertain||[]).filter(f =>
+      S.analyzed[f] != null && String(S.analyzed[f]) === String(wine[f] ?? '')
+    );
+    if (incertain.length) ai_meta.incertain = incertain;
+  }
+  wine.ai_meta = ai_meta;
   const blob = S.img ? b64ToBlob(S.img) : null;
   const ok = await saveWine(wine, blob);
   if(ok) go('collection');
@@ -900,7 +1074,7 @@ function h(s){ return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&
 function q(sel){ return document.querySelector(sel); }
 
 // Expose to inline handlers
-Object.assign(window,{go,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,saveSettings,resetCfg,copySQL,render,S});
+Object.assign(window,{go,openDetail,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,saveSettings,resetCfg,copySQL,render,S});
 
 /* ═══════════════════════════════════════
    BOOT
