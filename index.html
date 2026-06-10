@@ -905,6 +905,7 @@ CREATE TABLE IF NOT EXISTS public.vin (
 
 -- 2. Sécurité (accès public pour app perso)
 ALTER TABLE public.vin ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "cave_all" ON public.vin;
 CREATE POLICY "cave_all" ON public.vin
   FOR ALL USING (true) WITH CHECK (true);
 
@@ -912,6 +913,7 @@ CREATE POLICY "cave_all" ON public.vin
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('vins','vins',true) ON CONFLICT DO NOTHING;
 
+DROP POLICY IF EXISTS "cave_storage" ON storage.objects;
 CREATE POLICY "cave_storage" ON storage.objects
   FOR ALL USING (bucket_id = 'vins')
   WITH CHECK (bucket_id = 'vins');`;
