@@ -59,6 +59,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filters-row select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;outline:none;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .filters-row select:focus{border-color:var(--wine-light)}
 
+/* ── CATEGORY CHIPS ── */
+.cat-chips{display:flex;gap:8px;padding:10px 16px 0;background:var(--surface);overflow-x:auto;flex-shrink:0}
+.cat-chips::-webkit-scrollbar{display:none}
+.cat-chip{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:6px 13px;font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:background var(--trans),border-color var(--trans)}
+.cat-chip.active{background:var(--wine);border-color:var(--wine-light);color:#fff;font-weight:600}
+
 .wine-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:12px 16px 100px}
 @media(min-width:480px){.wine-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:768px){.wine-grid{grid-template-columns:repeat(4,1fr)}}
@@ -164,7 +170,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* ── DETAIL VIEW ── */
 .page-detail .topbar{background:transparent;border-bottom:none;position:absolute;top:0;left:0;right:0;z-index:10}
 .detail-photo{height:320px;background:var(--surface2);flex-shrink:0;position:relative;overflow:hidden}
-.detail-photo img{width:100%;height:100%;object-fit:cover}
+.detail-photo .photo-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(24px);opacity:0.45;transform:scale(1.15)}
+.detail-photo img{position:relative;width:100%;height:100%;object-fit:contain}
 .no-photo-lg{display:flex;align-items:center;justify-content:center;height:100%;font-size:96px;opacity:0.15}
 .detail-content{padding:20px 16px;flex:1;overflow-y:auto}
 .detail-content::-webkit-scrollbar{display:none}
@@ -241,7 +248,7 @@ let db = null;
 const S = {
   view: 'collection',
   wines: [], filtered: [],
-  search: '', fApp: '', fMill: '', sort: 'recent',
+  search: '', fApp: '', fMill: '', fCat: '', sort: 'recent',
   selected: null,
   img: null, analyzed: null,
   camStream: null, showCam: false,
@@ -322,6 +329,7 @@ function applyFilters() {
   }
   if (S.fApp)  r = r.filter(w => w.appellation === S.fApp);
   if (S.fMill) r = r.filter(w => w.millesime === +S.fMill);
+  if (S.fCat)  r = r.filter(w => w.categorie === S.fCat);
   switch(S.sort) {
     case 'nom_a':   r.sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')); break;
     case 'nom_z':   r.sort((a,b)=>(b.nom||'').localeCompare(a.nom||'')); break;
@@ -547,6 +555,7 @@ function render() {
 function vCollection() {
   const apps=[...new Set(S.wines.map(w=>w.appellation).filter(Boolean))].sort();
   const mills=[...new Set(S.wines.map(w=>w.millesime).filter(Boolean))].sort((a,b)=>b-a);
+  const cats=CATS.map(c=>c[0]).filter(c=>S.wines.some(w=>w.categorie===c));
   const total=S.wines.reduce((s,w)=>s+(w.quantite||0),0);
   const apps_cnt=apps.length;
   const avg=S.wines.length?( S.wines.filter(w=>w.note).reduce((s,w)=>s+(w.note||0),0)/(S.wines.filter(w=>w.note).length||1) ).toFixed(1):'—';
@@ -566,6 +575,10 @@ function vCollection() {
     <div class="stat-item"><span class="stat-num">${avg}</span><span class="stat-lbl">Note moy.</span></div>
   </div>
   <div class="search-bar"><input id="inp-search" type="text" placeholder="🔍 Rechercher…" value="${h(S.search)}" /></div>
+  ${cats.length?`<div class="cat-chips">
+    <button class="cat-chip${!S.fCat?' active':''}" onclick="setCat('')">Tous</button>
+    ${cats.map(c=>`<button class="cat-chip${S.fCat===c?' active':''}" onclick="setCat('${c}')">${catLabel(c)}</button>`).join('')}
+  </div>`:''}
   <div class="filters-row">
     <select id="sel-app">
       <option value="">Toutes appellations</option>
@@ -599,6 +612,11 @@ function vCollection() {
 function openDetail(id) {
   const w = S.wines.find(x=>x.id===id);
   if(w) go('detail', w);
+}
+
+function setCat(v) {
+  S.fCat = v;
+  applyFilters();
 }
 
 function wineCard(w) {
@@ -808,7 +826,7 @@ function vDetail() {
   </header>
   <div class="page-scroll">
     <div class="detail-photo">
-      ${w.photo_url?`<img src="${h(w.photo_url)}" alt="${h(w.nom)}"/>`:'<div class="no-photo-lg">🍷</div>'}
+      ${w.photo_url?`<div class="photo-bg" style="background-image:url('${h(w.photo_url)}')"></div><img src="${h(w.photo_url)}" alt="${h(w.nom)}"/>`:'<div class="no-photo-lg">🍷</div>'}
     </div>
     <div class="detail-content">
       <h2 class="detail-name">${h(w.nom||'Sans nom')}${w.cuvee?` — ${h(w.cuvee)}`:''}</h2>
@@ -1074,7 +1092,7 @@ function h(s){ return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&
 function q(sel){ return document.querySelector(sel); }
 
 // Expose to inline handlers
-Object.assign(window,{go,openDetail,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,saveSettings,resetCfg,copySQL,render,S});
+Object.assign(window,{go,openDetail,setCat,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,saveSettings,resetCfg,copySQL,render,S});
 
 /* ═══════════════════════════════════════
    BOOT
