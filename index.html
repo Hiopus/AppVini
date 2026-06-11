@@ -512,8 +512,67 @@ function snapPhoto() {
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v,0,0);
   }
-  S.img = c.toDataURL('image/jpeg', 0.9);
-  stopCam(); render();
+  stopCam();
+  finishCapture(c.toDataURL('image/jpeg', 0.9));
+}
+
+/* Fond blanc : blanchit l'arrière-plan clair autour de la bouteille.
+   On part des bords de l'image et on blanchit de proche en proche les
+   pixels clairs reliés au bord (le fond). L'étiquette, entourée par la
+   bouteille, n'est jamais touchée. */
+function whitenBackground(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width, h = img.height;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const im = ctx.getImageData(0, 0, w, h);
+      const p = im.data;
+      const isLight = idx => {
+        const r = p[idx], g = p[idx+1], b = p[idx+2];
+        return (r+g+b)/3 > 150 && (Math.max(r,g,b)-Math.min(r,g,b)) < 70;
+      };
+      const seen = new Uint8Array(w*h);
+      const stack = [];
+      for (let x=0; x<w; x++) stack.push(x, (h-1)*w + x);
+      for (let y=0; y<h; y++) stack.push(y*w, y*w + w - 1);
+      while (stack.length) {
+        const i = stack.pop();
+        if (i < 0 || i >= w*h || seen[i]) continue;
+        seen[i] = 1;
+        const idx = i*4;
+        if (!isLight(idx)) continue;
+        p[idx] = p[idx+1] = p[idx+2] = 255;
+        const x = i % w;
+        if (x > 0)   stack.push(i-1);
+        if (x < w-1) stack.push(i+1);
+        stack.push(i-w, i+w);
+      }
+      ctx.putImageData(im, 0, 0);
+      resolve(c.toDataURL('image/jpeg', 0.9));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+/* Après capture ou import : compresse puis applique le fond blanc */
+async function finishCapture(raw) {
+  S.imgOrig = await compressImg(raw);
+  S.imgWhite = await whitenBackground(S.imgOrig);
+  S.whiteBg = true;
+  S.img = S.imgWhite;
+  render();
+}
+
+function toggleBg() {
+  if (!S.imgOrig) return;
+  S.whiteBg = !S.whiteBg;
+  S.img = S.whiteBg ? S.imgWhite : S.imgOrig;
+  render();
 }
 
 /* Compression d'image : réduit à 1200 px max pour un envoi rapide
@@ -556,7 +615,7 @@ function toast(msg, type='info') {
 ═══════════════════════════════════════ */
 function go(view, data=null) {
   stopCam();
-  S.view=view; S.img=null; S.analyzed=null; S.showCam=false; S.starVal=0;
+  S.view=view; S.img=null; S.imgOrig=null; S.imgWhite=null; S.whiteBg=false; S.analyzed=null; S.showCam=false; S.starVal=0;
   if(data) S.selected=data;
   render();
 }
@@ -717,7 +776,8 @@ function vAdd() {
     ? `<div class="captured-photo">
         <img src="${S.img}" alt="Étiquette"/>
         <div class="captured-actions">
-          <button class="btn-secondary btn-sm" onclick="S.img=null;S.analyzed=null;render()">🔄 Reprendre</button>
+          <button class="btn-secondary btn-sm" onclick="S.img=null;S.imgOrig=null;S.imgWhite=null;S.analyzed=null;render()">🔄 Reprendre</button>
+          <button class="btn-secondary btn-sm" onclick="toggleBg()">${S.whiteBg?'↩️ Fond original':'🪄 Fond blanc'}</button>
           ${!S.analyzed&&!S.analyzing?`<button class="btn-primary btn-sm" onclick="doAnalyze()">🤖 Analyser</button>`:''}
           ${S.analyzing?'<span class="analyzing-indicator">🔍 Analyse…</span>':''}
           ${S.analyzed&&!S.analyzing?'<span class="analyzed-badge">✅ Analysé</span>':''}
@@ -1061,7 +1121,7 @@ function doAnalyze() {
 function handleFile(input) {
   const f = input.files[0]; if(!f) return;
   const r = new FileReader();
-  r.onload = async e => { S.img = await compressImg(e.target.result); render(); };
+  r.onload = e => finishCapture(e.target.result);
   r.readAsDataURL(f);
 }
 
@@ -1229,7 +1289,7 @@ function h(s){ return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&
 function q(sel){ return document.querySelector(sel); }
 
 // Expose to inline handlers
-Object.assign(window,{go,openDetail,setCat,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,shareWine,saveSettings,resetCfg,copySQL,exportJSON,importJSON,render,S});
+Object.assign(window,{go,openDetail,setCat,startCam,stopCam,snapPhoto,handleFile,toggleBg,doAnalyze,chgQtyForm,doSave,doQty,doDelete,shareWine,saveSettings,resetCfg,copySQL,exportJSON,importJSON,render,S});
 
 /* ═══════════════════════════════════════
    BOOT
