@@ -843,7 +843,7 @@ function vAdd() {
           <label>Quantité en cave</label>
           <div class="qty-input">
             <button type="button" class="qty-btn" onclick="chgQtyForm(-1)">−</button>
-            <input type="number" id="f-qty" value="1" min="0" max="9999"/>
+            <input type="number" id="f-qty" value="0" min="0" max="9999"/>
             <button type="button" class="qty-btn" onclick="chgQtyForm(1)">+</button>
           </div>
         </div>
@@ -903,7 +903,7 @@ function vAdd() {
         <textarea id="f-comm" rows="3" placeholder="Mes impressions…"></textarea>
       </div>
       <button class="btn-primary btn-full" onclick="doSave()" ${S.saving?'disabled':''}>
-        ${S.saving?'⏳ Sauvegarde…':'✓ Ajouter à la cave'}
+        ${S.saving?'⏳ Sauvegarde…':'✓ Ajouter au carnet'}
       </button>
     </div>
   </div>
