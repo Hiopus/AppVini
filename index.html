@@ -125,8 +125,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* ── CAMERA ── */
 .camera-container{position:fixed;inset:0;background:#000;z-index:1000;display:flex;flex-direction:column}
 #cam-video{flex:1;width:100%;min-height:0;object-fit:cover}
-.camera-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-.camera-frame{width:260px;height:340px;border:2px solid rgba(255,255,255,0.6);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,0.4)}
+.camera-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none}
+.camera-hint{color:#fff;font-size:13px;font-weight:600;background:rgba(0,0,0,0.5);padding:7px 16px;border-radius:18px;text-align:center;max-width:85vw}
+.camera-frame{width:min(250px,68vw);height:min(450px,56vh);border:2px solid rgba(255,255,255,0.7);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45)}
 .camera-controls{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:24px 32px 40px;background:linear-gradient(transparent,rgba(0,0,0,0.7))}
 .capture-btn{width:70px;height:70px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,0.3);cursor:pointer;font-size:28px;display:flex;align-items:center;justify-content:center;transition:transform var(--trans)}
 .capture-btn:active{transform:scale(0.9)}
@@ -489,9 +490,29 @@ function snapPhoto() {
   const v = document.getElementById('cam-video');
   if (!v) return;
   const c = document.createElement('canvas');
-  c.width = v.videoWidth; c.height = v.videoHeight;
-  c.getContext('2d').drawImage(v,0,0);
-  S.img = c.toDataURL('image/jpeg', 0.85);
+  const frame = document.querySelector('.camera-frame');
+  // Recadrage sur le cadre affiché à l'écran : on ne garde que la bouteille
+  if (frame && v.videoWidth) {
+    const vr = v.getBoundingClientRect();
+    const fr = frame.getBoundingClientRect();
+    // la vidéo est affichée en "cover" : on calcule l'échelle et le décalage réels
+    const scale = Math.max(vr.width / v.videoWidth, vr.height / v.videoHeight);
+    const offX = vr.left + (vr.width  - v.videoWidth  * scale) / 2;
+    const offY = vr.top  + (vr.height - v.videoHeight * scale) / 2;
+    // position du cadre dans l'image source, sans sortir des bords
+    let sx = (fr.left - offX) / scale, sy = (fr.top - offY) / scale;
+    let sw = fr.width / scale,         sh = fr.height / scale;
+    sx = Math.max(0, Math.min(sx, v.videoWidth  - 1));
+    sy = Math.max(0, Math.min(sy, v.videoHeight - 1));
+    sw = Math.min(sw, v.videoWidth  - sx);
+    sh = Math.min(sh, v.videoHeight - sy);
+    c.width = Math.round(sw); c.height = Math.round(sh);
+    c.getContext('2d').drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  } else {
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v,0,0);
+  }
+  S.img = c.toDataURL('image/jpeg', 0.9);
   stopCam(); render();
 }
 
@@ -663,7 +684,10 @@ function vAdd() {
   const camHTML = S.showCam
     ? `<div class="camera-container">
         <video id="cam-video" autoplay playsinline muted></video>
-        <div class="camera-overlay"><div class="camera-frame"></div></div>
+        <div class="camera-overlay">
+          <div class="camera-hint">📷 Bouteille sur fond blanc, bien dans le cadre — la photo sera recadrée sur le cadre</div>
+          <div class="camera-frame"></div>
+        </div>
         <div class="camera-controls">
           <button class="camera-cancel-btn" onclick="stopCam();render()">✕ Annuler</button>
           <button class="capture-btn" onclick="snapPhoto()">📸</button>
