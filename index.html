@@ -516,6 +516,25 @@ function snapPhoto() {
   stopCam(); render();
 }
 
+/* Compression d'image : réduit à 1200 px max pour un envoi rapide
+   et un stockage Supabase économe (sans perte visible à l'écran) */
+function compressImg(dataUrl, maxDim = 1200, quality = 0.85) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width, h = img.height;
+      if (Math.max(w, h) <= maxDim) { resolve(dataUrl); return; }
+      const scale = maxDim / Math.max(w, h);
+      const c = document.createElement('canvas');
+      c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 function b64ToBlob(b64) {
   const b = atob(b64.split(',')[1]), m = b64.split(',')[0].split(':')[1].split(';')[0];
   const ab = new ArrayBuffer(b.length), ia = new Uint8Array(ab);
@@ -853,7 +872,10 @@ function vDetail() {
   <header class="topbar">
     <button class="back-btn" onclick="go('collection')">← Retour</button>
     <div></div>
-    <button class="delete-btn" onclick="doDelete('${w.id}')">🗑️</button>
+    <div style="display:flex;gap:4px">
+      <button class="icon-btn" onclick="shareWine('${w.id}')">📤</button>
+      <button class="delete-btn" onclick="doDelete('${w.id}')">🗑️</button>
+    </div>
   </header>
   <div class="page-scroll">
     <div class="detail-photo">
@@ -1039,7 +1061,7 @@ function doAnalyze() {
 function handleFile(input) {
   const f = input.files[0]; if(!f) return;
   const r = new FileReader();
-  r.onload = e => { S.img=e.target.result; render(); };
+  r.onload = async e => { S.img = await compressImg(e.target.result); render(); };
   r.readAsDataURL(f);
 }
 
@@ -1082,7 +1104,7 @@ async function doSave() {
     if (incertain.length) ai_meta.incertain = incertain;
   }
   wine.ai_meta = ai_meta;
-  const blob = S.img ? b64ToBlob(S.img) : null;
+  const blob = S.img ? b64ToBlob(await compressImg(S.img)) : null;
   const ok = await saveWine(wine, blob);
   if(ok) go('collection');
 }
@@ -1119,6 +1141,28 @@ function saveSettings() {
 function resetCfg() {
   if(!confirm('Réinitialiser ? Vos données restent sur Supabase.')) return;
   LS.del('cave_cfg'); cfg={url:'',key:'',aiProv:'claude',aiKey:''}; db=null; render();
+}
+
+/* ── PARTAGE D'UNE FICHE ── */
+function shareWine(id) {
+  const w = S.wines.find(x=>x.id===id); if(!w) return;
+  const lignes = [
+    `🍷 ${w.nom||''}${w.cuvee?' — '+w.cuvee:''}${w.millesime?' '+w.millesime:''}`,
+    [w.appellation, w.region, w.pays].filter(Boolean).join(' · '),
+    w.cepages ? 'Cépages : ' + w.cepages : '',
+    w.note ? 'Ma note : ' + w.note + '/5 ' + '★'.repeat(Math.round(w.note)) : '',
+    w.commentaire ? '« ' + w.commentaire + ' »' : '',
+    w.accords_mets ? 'À déguster avec : ' + w.accords_mets : '',
+    w.temp_service ? 'Service : ' + w.temp_service : '',
+  ].filter(Boolean);
+  const texte = lignes.join('\n');
+  if (navigator.share) {
+    navigator.share({ text: texte }).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(texte)
+      .then(()=>toast('Fiche copiée — collez-la dans un message !','success'))
+      .catch(()=>toast('Impossible de copier','error'));
+  }
 }
 
 /* ── EXPORT / IMPORT JSON ── */
@@ -1185,7 +1229,7 @@ function h(s){ return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&
 function q(sel){ return document.querySelector(sel); }
 
 // Expose to inline handlers
-Object.assign(window,{go,openDetail,setCat,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,saveSettings,resetCfg,copySQL,exportJSON,importJSON,render,S});
+Object.assign(window,{go,openDetail,setCat,startCam,stopCam,snapPhoto,handleFile,doAnalyze,chgQtyForm,doSave,doQty,doDelete,shareWine,saveSettings,resetCfg,copySQL,exportJSON,importJSON,render,S});
 
 /* ═══════════════════════════════════════
    BOOT
