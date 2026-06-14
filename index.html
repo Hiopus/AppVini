@@ -617,8 +617,21 @@ function go(view, data=null) {
   stopCam();
   S.view=view; S.img=null; S.imgOrig=null; S.imgWhite=null; S.whiteBg=false; S.analyzed=null; S.showCam=false; S.starVal=0;
   if(data) S.selected=data;
+  // Synchronise le bouton « retour » du téléphone : la collection est l'écran
+  // d'accueil (on remplace), les autres écrans empilent une étape à annuler.
+  if(view==='collection') history.replaceState({view:'collection'},'');
+  else history.pushState({view},'');
   render();
 }
+
+// Bouton « retour » du téléphone/navigateur : on revient à l'écran précédent
+// au lieu de quitter l'app (ce qui laissait une page blanche).
+window.addEventListener('popstate', e => {
+  stopCam();
+  S.view = (e.state && e.state.view) || 'collection';
+  S.img=null; S.imgOrig=null; S.imgWhite=null; S.whiteBg=false; S.analyzed=null; S.showCam=false; S.starVal=0;
+  render();
+});
 
 /* ═══════════════════════════════════════
    RENDER
@@ -1301,7 +1314,7 @@ if ('serviceWorker' in navigator) {
 
 (async()=>{
   if(initDB()){
-    S.view='collection'; render();
+    S.view='collection'; history.replaceState({view:'collection'},''); render();
     await fetchWines();
   } else {
     S.view='settings'; render();
